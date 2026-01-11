@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server';
-import playwright from 'playwright-core';
 import * as cheerio from 'cheerio';
 
 // Optimize for serverless: force generic fonts to avoid loading issues in some environments
-const FONT_URL = 'https://github.com/google/fonts/raw/main/ofl/notosanssc/NotoSansSC-Regular.ttf';
-
-export const maxDuration = 60; // Allow up to 60 seconds for scraping (Vercel Pro/Hobby limits apply)
+export const maxDuration = 60; // Allow up to 60 seconds
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -15,78 +12,57 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Missing keyword parameter' }, { status: 400 });
     }
 
-    let browser = null;
-
     try {
-        // 1. Launch Browser (Local vs Serverless)
-        if (process.env.NODE_ENV === 'development') {
-            // Local: Use full Playwright
-            const { chromium: localChromium } = require('playwright');
-            browser = await localChromium.launch({ headless: true });
-        } else {
-            // PROD: Vercel Serverless
-            // Use remote executable to avoid 50MB function limit and bundling issues
-            console.log('Launching Remote Chromium...');
+        console.log(`Analyzing topic: ${keyword}`);
 
-            // @ts-ignore
-            const chromium = require('@sparticuz/chromium-min');
-            const remoteExecutablePath = 'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar';
-
-            browser = await playwright.chromium.launch({
-                args: chromium.args,
-                executablePath: await chromium.executablePath(remoteExecutablePath),
-                headless: true,
-            });
-        }
-
-        // 2. Setup Context (Mobile User Agent)
-        const context = await browser.newContext({
-            userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
-        });
-        const page = await context.newPage();
-
-        // 3. Search logic (Reusing fetchHotSearchList logic but for specific keyword)
-        // Direct navigation to detail page is possible if we know the q param
+        // 1. Fetch Detail Page HTML (Lightweight, no browser)
         const detailUrl = `https://m.s.weibo.com/topic/detail?q=${encodeURIComponent(keyword)}`;
-        console.log(`Navigating to: ${detailUrl}`);
 
-        await page.goto(detailUrl, { waitUntil: 'domcontentloaded' });
+        const headers = {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8'
+        };
 
-        // 4. Extract Static Data (Hot/Discuss/Read) - Reusing logic from fetchHotDetail
-        const content = await page.content();
-        const $ = cheerio.load(content);
+        const res = await fetch(detailUrl, { headers });
+        if (!res.ok) throw new Error(`Weibo returned ${res.status}`);
 
+        const html = await res.text();
+        const $ = cheerio.load(html);
+
+        // 2. Extract Static Data
         let host = '';
         const hostElement = $('#pl_topicband .host-row .host span');
         if (hostElement.length > 0) {
             host = hostElement.text().trim();
         }
 
-        // Extract Counts
         const readCount = extractCount($, '阅读');
         const discussCount = extractCount($, '讨论');
         const originalCount = extractCount($, '原创');
 
-        // 5. Fetch Trend Data (Using the API we discovered)
-        const trendData = await page.evaluate(async (q: string) => {
-            try {
-                // Fetch Heat Level
-                const levelRes = await fetch(`https://m.s.weibo.com/ajax_topic/level?q=${encodeURIComponent(q)}`);
-                const levelJson = await levelRes.json();
+        // 3. Fetch Trend Data (Using the API we discovered)
+        // https://m.s.weibo.com/ajax_topic/trend?q=...&time=24h
+        let trendData = { level: 0, readTrend: [], discussTrend: [] };
 
-                // Fetch 24h Trend
-                const trendRes = await fetch(`https://m.s.weibo.com/ajax_topic/trend?q=${encodeURIComponent(q)}&time=24h`);
-                const trendJson = await trendRes.json();
+        try {
+            // Trend API
+            const trendRes = await fetch(`https://m.s.weibo.com/ajax_topic/trend?q=${encodeURIComponent(keyword)}&time=24h`, { headers });
+            const trendJson = await trendRes.json();
 
-                return {
-                    level: levelJson?.data?.level || 0,
-                    readTrend: trendJson?.data?.read || [],
-                    discussTrend: trendJson?.data?.me || []
-                };
-            } catch (e) {
-                return { level: 0, readTrend: [], discussTrend: [] };
-            }
-        }, keyword);
+            // Level API
+            const levelRes = await fetch(`https://m.s.weibo.com/ajax_topic/level?q=${encodeURIComponent(keyword)}`, { headers });
+            const levelJson = await levelRes.json();
+
+            trendData = {
+                level: levelJson?.data?.level || 0,
+                readTrend: trendJson?.data?.read || [],
+                discussTrend: trendJson?.data?.me || []
+            };
+
+        } catch (e) {
+            console.warn('Failed to fetch trends:', e);
+        }
 
         return NextResponse.json({
             topic: keyword,
@@ -106,18 +82,13 @@ export async function GET(request: Request) {
         });
 
     } catch (error: any) {
-        console.error('Scraping failed:', error);
+        console.error('Analysis failed:', error);
         return NextResponse.json({ error: 'Failed to scrape data', details: error.message }, { status: 500 });
-    } finally {
-        if (browser) {
-            await browser.close();
-        }
     }
 }
 
 // Helper to extract "Number + Unit" string
 function extractCount($: any, type: string) {
-    // Find li that contains the label text (e.g. "阅读次数")
     const li = $('li').filter((i: number, el: any) => $(el).text().includes(type)).first();
     if (li.length > 0) {
         return li.find('span').text().trim().replace(/\s+/g, '');
