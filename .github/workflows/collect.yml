@@ -2,13 +2,26 @@ name: Weibo Hot Search Collection
 
 on:
   schedule:
-    - cron: '*/15 * * * *' # Run every 15 minutes
-  workflow_dispatch: # Allow manual trigger
+    - cron: '*/15 * * * *' # Every 15 minutes
+  workflow_dispatch:
 
 jobs:
-  cron:
+  collect:
     runs-on: ubuntu-latest
     steps:
-      - name: Call API
-        run: |
-          curl -X GET "https://${{ secrets.VERCEL_PROJECT_DOMAIN }}/api/cron/collect?CRON_SECRET=${{ secrets.CRON_SECRET }}"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Collection Script
+        run: npm run collect
+        env:
+          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
