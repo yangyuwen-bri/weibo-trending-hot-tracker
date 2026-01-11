@@ -46,12 +46,20 @@ export async function GET(request: Request) {
         let trendData = { level: 0, readTrend: [], discussTrend: [] };
 
         try {
+            // Trend API requires Referer and Ajax Header to pass WAF/Bot check
+            const apiHeaders = {
+                ...headers,
+                'Referer': detailUrl,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json, text/plain, */*'
+            };
+
             // Trend API
-            const trendRes = await fetch(`https://m.s.weibo.com/ajax_topic/trend?q=${encodeURIComponent(keyword)}&time=24h`, { headers });
+            const trendRes = await fetch(`https://m.s.weibo.com/ajax_topic/trend?q=${encodeURIComponent(keyword)}&time=24h`, { headers: apiHeaders });
             const trendJson = await trendRes.json();
 
             // Level API
-            const levelRes = await fetch(`https://m.s.weibo.com/ajax_topic/level?q=${encodeURIComponent(keyword)}`, { headers });
+            const levelRes = await fetch(`https://m.s.weibo.com/ajax_topic/level?q=${encodeURIComponent(keyword)}`, { headers: apiHeaders });
             const levelJson = await levelRes.json();
 
             trendData = {
