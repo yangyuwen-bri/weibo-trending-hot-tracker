@@ -1,11 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     output: 'standalone',
-    // Newer Next.js versions
-    serverExternalPackages: ['@sparticuz/chromium'],
-    // Legacy/Experimental key for safety
+    serverExternalPackages: ['@sparticuz/chromium-min'],
     experimental: {
-        serverComponentsExternalPackages: ['@sparticuz/chromium'],
+        serverComponentsExternalPackages: ['@sparticuz/chromium-min'],
     },
 };
 
