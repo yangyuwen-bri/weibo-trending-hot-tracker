@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Weibo Trending Hot Tracker (微博热搜追踪器)
 
-## Getting Started
+A Next.js application designed to **track, archive, and analyze** Weibo Trending Topics (Hot Search).
+It automatically captures real-time data, builds a historical database, and offers **Daily Email Digests** for keyword monitoring.
 
-First, run the development server:
+## ✨ 特性 (Features)
+
+- **实时分析**: 输入关键词/链接，实时抓取阅读量、讨论量趋势（24小时）。
+- **历史回溯**: 内置 Vercel Postgres 数据库，通过 Cron Job 每10分钟自动记录热搜历史。
+- **智能搜索**: 优先搜索本地数据库历史，未命中则实时抓取。
+- **可视化图表**: 使用 Recharts 绘制精美的交互式趋势图。
+- **Serverless 爬虫**: 基于 `@sparticuz/chromium`，完美适配 Vercel Serverless 环境。
+
+## 🛠 技术栈 (Tech Stack)
+
+- **Frontend**: Next.js 14, Tailwind CSS, Recharts, Lucide Icons
+- **Backend API**: Next.js API Routes (Serverless)
+- **Database**: Vercel Postgres
+- **Scraper**: Playwright Core + Cheerio
+
+## 🚀 快速开始 (Getting Started)
+
+### 1. 安装依赖
+
+```bash
+npm install
+```
+
+### 2. 本地开发
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+访问 [http://localhost:3000](http://localhost:3000) 即可使用。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+*注意：本地开发环境下，API 会自动调用本地的 Chrome 浏览器进行抓取。*
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 📦 部署 (Deployment)
 
-## Learn More
+推荐使用 [Vercel](https://vercel.com) 进行一键部署。
 
-To learn more about Next.js, take a look at the following resources:
+1. **Push 代码**: 将本项目提交到 GitHub。
+2. **导入项目**: 在 Vercel 后台导入该 Git 仓库。
+3. **配置数据库**: 
+   - 在 Vercel 项目控制台，点击 "Storage" -> "Create Database" -> "Postgres".
+   - 创建后，点击 "Connect Project"，Vercel 会自动注入 `POSTGRES_URL` 等环境变量。
+4. **重新部署**: 数据库连接后，重新 Deploy 一次以应用环境变量。
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 定时任务 (Cron Job)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+项目包含 `vercel.json` 配置（需手动添加），用于每10分钟触发 `/api/cron/collect`。
 
-## Deploy on Vercel
+在根目录创建 `vercel.json`:
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/collect",
+      "schedule": "*/10 * * * *"
+    }
+  ]
+}
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🙏 致谢 (Acknowledgments)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+本项目的核心数据采集逻辑参考了开源项目 [weibo-trending-hot-history](https://github.com/lxw15337674/weibo-trending-hot-history)。
+
+- **核心区别**: 原项目主要专注于历史数据的归档（按小时/天），本项目在此基础上增加了 **关键词模糊搜索** 能力。通过构建本地数据库，支持用户输入任意关键词查询历史热搜记录，而不仅仅是查看榜单快照。
+- 感谢原作者提供的 API 接口思路（trend/hottrend）。
+- 本项目进一步适配了 Next.js Serverless 环境并提供了可视化交互。
+
+## 📄 License
+
+MIT
