@@ -1,0 +1,14 @@
+name: Weibo Hot Search Collection
+
+on:
+  schedule:
+    - cron: '*/15 * * * *' # Run every 15 minutes
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call API
+        run: |
+          curl -X GET "https://${{ secrets.VERCEL_PROJECT_DOMAIN }}/api/cron/collect?CRON_SECRET=${{ secrets.CRON_SECRET }}"

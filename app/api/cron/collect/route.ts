@@ -4,6 +4,12 @@ import { fetchAndSaveHotList } from '@/app/lib/weibo';
 export const dynamic = 'force-dynamic'; // Prevent caching
 
 export async function GET(request: Request) {
+    const { searchParams } = new URL(request.url);
+    const secret = searchParams.get('CRON_SECRET');
+    if (secret !== process.env.CRON_SECRET) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     try {
         const result = await fetchAndSaveHotList();
 

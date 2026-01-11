@@ -9,10 +9,15 @@ const resendApiKey = process.env.RESEND_API_KEY || 're_123_mock_key'; // Fallbac
 const resend = new Resend(resendApiKey);
 
 export async function GET(request: Request) {
+    const { searchParams } = new URL(request.url);
+    const secret = searchParams.get('CRON_SECRET');
+    if (secret !== process.env.CRON_SECRET) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     // 1. Time Check: Only run at 9:00 AM Beijing Time (01:00 UTC)
     // Vercel Cron runs at UTC. 9am CST = 1am UTC.
     // Allow manual trigger via ?force=true
-    const { searchParams } = new URL(request.url);
     const force = searchParams.get('force') === 'true';
 
     const now = new Date();

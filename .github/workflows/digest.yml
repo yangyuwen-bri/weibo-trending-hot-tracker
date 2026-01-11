@@ -1,0 +1,14 @@
+name: Weibo Daily Digest
+
+on:
+  schedule:
+    - cron: '0 * * * *' # Run every hour
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call API
+        run: |
+          curl -X GET "https://${{ secrets.VERCEL_PROJECT_DOMAIN }}/api/cron/digest?CRON_SECRET=${{ secrets.CRON_SECRET }}"
