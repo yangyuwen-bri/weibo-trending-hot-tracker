@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import chromium from '@sparticuz/chromium';
 import playwright from 'playwright-core';
 import * as cheerio from 'cheerio';
 
@@ -25,11 +24,18 @@ export async function GET(request: Request) {
             const { chromium: localChromium } = require('playwright');
             browser = await localChromium.launch({ headless: true });
         } else {
-            // Production (Vercel): Use sparticuz/chromium
+            // PROD: Vercel Serverless
+            // Use remote executable to avoid 50MB function limit and bundling issues
+            console.log('Launching Remote Chromium...');
+
+            // @ts-ignore
+            const chromium = require('@sparticuz/chromium-min');
+            const remoteExecutablePath = 'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar';
+
             browser = await playwright.chromium.launch({
                 args: chromium.args,
-                executablePath: await chromium.executablePath(),
-                headless: true, // Force headless
+                executablePath: await chromium.executablePath(remoteExecutablePath),
+                headless: chromium.headless,
             });
         }
 
@@ -40,12 +46,7 @@ export async function GET(request: Request) {
         const page = await context.newPage();
 
         // 3. Search logic (Reusing fetchHotSearchList logic but for specific keyword)
-        // Direct navigation to detail page is possible if we know the q param, 
-        // but for "Hot Search Names" usually we search or try to construct URL.
-        // For this demo, we assume the user inputs the EXACT topic name or we search for it.
-        // Let's assume input IS the topic name for simplicity, consistent with test.js usage.
-
-        // Construct Detail URL
+        // Direct navigation to detail page is possible if we know the q param
         const detailUrl = `https://m.s.weibo.com/topic/detail?q=${encodeURIComponent(keyword)}`;
         console.log(`Navigating to: ${detailUrl}`);
 
@@ -67,9 +68,6 @@ export async function GET(request: Request) {
         const originalCount = extractCount($, '原创');
 
         // 5. Fetch Trend Data (Using the API we discovered)
-        // We can use page.request (APIContext) for this to share cookies/headers if needed, 
-        // or just page.evaluate to run inside the browser context.
-
         const trendData = await page.evaluate(async (q: string) => {
             try {
                 // Fetch Heat Level
@@ -119,10 +117,6 @@ export async function GET(request: Request) {
 
 // Helper to extract "Number + Unit" string
 function extractCount($: any, type: string) {
-    // Logic similar to test.js: find li containing text, get strong + span
-    // Simpler Cheerio approach based on structure:
-    // <li><span><strong>1566.4</strong>万</span>阅读次数</li>
-
     // Find li that contains the label text (e.g. "阅读次数")
     const li = $('li').filter((i: number, el: any) => $(el).text().includes(type)).first();
     if (li.length > 0) {
